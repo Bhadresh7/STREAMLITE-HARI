@@ -1,0 +1,8 @@
+streamlit
+pandas
+plotly
+yfinance
+ta
+pytz
+pymongo
+dnspython
