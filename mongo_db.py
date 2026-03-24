@@ -2,7 +2,7 @@ import pymongo
 from pymongo.server_api import ServerApi
 import datetime
 
-MONGO_URI = "mongodb+srv://Trading:Trading123@trading.xawhtqs.mongodb.net/?appName=Trading"
+MONGO_URI = "mongodb+srv://Trading:Trading2026@trading.xawhtqs.mongodb.net/?appName=Trading"
 
 class TradingDB:
     def __init__(self):
