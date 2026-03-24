@@ -25,6 +25,10 @@ if not st.session_state.logged_in:
     st.title("🔐 Login Required")
     st.markdown("Please sign in to access the Institutional-Grade Trading Engine")
     
+    if not db_client.connected:
+        st.error("🚨 Database Connection Failed! Please check your MongoDB URI or network settings.")
+        st.info("Falling back to local session state (Data won't persist across restarts).")
+        
     # Simple centered layout for login
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:

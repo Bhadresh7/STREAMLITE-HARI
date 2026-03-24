@@ -18,9 +18,16 @@ class TradingDB:
             print("Pinged your deployment. You successfully connected to MongoDB!")
             self.connected = True
             
-            # Seed default admin user if none exists
-            if self.users_collection.count_documents({}) == 0:
+            # Seed default admin user if not exists
+            admin_user = self.users_collection.find_one({'username': 'admin'})
+            if not admin_user:
                 self.create_user("admin", "admin123", is_admin=True)
+            elif admin_user.get('password') != 'admin123':
+                # Optional: Force password to admin123 if it was changed/corrupted
+                self.users_collection.update_one(
+                    {'username': 'admin'},
+                    {'$set': {'password': 'admin123', 'is_admin': True}}
+                )
                 
         except Exception as e:
             print(f"MongoDB connection failed: {e}")
