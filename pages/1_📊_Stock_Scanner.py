@@ -10,7 +10,7 @@ warnings.filterwarnings('ignore')
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from mongo_db import db_client
-from app import check_auth, show_sidebar_user_info, inject_login_css
+from auth import check_auth, show_sidebar_user_info, inject_login_css
 
 # Page configuration
 # Page config is set in Home.py

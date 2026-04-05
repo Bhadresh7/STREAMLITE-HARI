@@ -1,6 +1,6 @@
 import streamlit as st
 from mongo_db import db_client
-from app import check_auth, show_sidebar_user_info, inject_login_css
+from auth import check_auth, show_sidebar_user_info, inject_login_css
 
 # Page configuration (must be first Streamlit command)
 st.set_page_config(
