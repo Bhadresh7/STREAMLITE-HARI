@@ -7,13 +7,20 @@ import requests
 from bs4 import BeautifulSoup
 import warnings
 warnings.filterwarnings('ignore')
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from mongo_db import db_client
+from auth import check_auth, show_sidebar_user_info, inject_login_css
 
 # Page configuration
-st.set_page_config(
-    page_title="Intraday Stock Analysis System",
-    page_icon="📈",
-    layout="wide"
-)
+# Page config is set in Home.py
+
+# ── Authentication Gate ──
+if not check_auth():
+    st.stop()
+
+inject_login_css()
+show_sidebar_user_info()
 
 # Custom CSS
 st.markdown("""
@@ -108,6 +115,30 @@ class IntradayAnalyzer:
             try:
                 df_nifty200 = pd.read_csv(nifty200_url)
                 stocks.extend([symbol + '.NS' for symbol in df_nifty200['Symbol'].tolist()])
+            except:
+                pass
+            
+            # Get NIFTY 500
+            nifty500_url = "https://archives.nseindia.com/content/indices/ind_nifty500list.csv"
+            try:
+                df_nifty500 = pd.read_csv(nifty500_url)
+                stocks.extend([symbol + '.NS' for symbol in df_nifty500['Symbol'].tolist()])
+            except:
+                pass
+            
+            # Get NIFTY Midcap 150
+            midcap_url = "https://archives.nseindia.com/content/indices/ind_niftymidcap150list.csv"
+            try:
+                df_midcap = pd.read_csv(midcap_url)
+                stocks.extend([symbol + '.NS' for symbol in df_midcap['Symbol'].tolist()])
+            except:
+                pass
+            
+            # Get NIFTY Smallcap 250
+            smallcap_url = "https://archives.nseindia.com/content/indices/ind_niftysmallcap250list.csv"
+            try:
+                df_smallcap = pd.read_csv(smallcap_url)
+                stocks.extend([symbol + '.NS' for symbol in df_smallcap['Symbol'].tolist()])
             except:
                 pass
             
@@ -565,6 +596,11 @@ def main():
         with st.spinner("Analyzing live market conditions from NSE..."):
             market_context = analyzer.analyze_market_context()
         
+        # 💾 Save market context to MongoDB
+        if db_client.connected:
+            db_client.save_market_context(market_context)
+            st.caption("💾 Market context saved to database")
+        
         # Enhanced Market Context Display
         col1, col2, col3, col4 = st.columns(4)
         
@@ -651,6 +687,19 @@ def main():
         if not results_df.empty:
             st.success(f"✅ Analysis Complete! Found {len(results_df)} high-probability opportunities")
             
+            # 💾 Save scan results to MongoDB
+            if db_client.connected:
+                _user = st.session_state.get('username', 'unknown')
+                results_list = results_df.to_dict('records')
+                db_client.save_scan_results(results_list, market_context, username=_user)
+                db_client.save_scanner_run(
+                    total_stocks_scanned=len(analyzer.stock_universe),
+                    results_count=len(results_df),
+                    market_bias=market_context.get('bias', 'UNKNOWN'),
+                    username=_user
+                )
+                st.caption("💾 Scan results saved to database")
+            
             st.header("🏆 TOP 10 INTRADAY STOCKS")
             
             # Display table
@@ -714,6 +763,47 @@ def main():
     
     else:
         st.info("👈 Click 'START ANALYSIS' in the sidebar to begin scanning")
+        
+        # Show scan history from MongoDB
+        if db_client.connected:
+            st.markdown("### 📜 Recent Scan History")
+            scan_history = db_client.get_scan_history(limit=5)
+            if scan_history:
+                for run in scan_history:
+                    ts = run.get('timestamp', '')
+                    if hasattr(ts, 'strftime'):
+                        ts = ts.strftime('%Y-%m-%d %H:%M UTC')
+                    st.markdown(
+                        f"- **{ts}** — Scanned {run.get('total_stocks_scanned', 0)} stocks, "
+                        f"Found {run.get('qualifying_results', 0)} results, "
+                        f"Market: {run.get('market_bias', 'N/A')}"
+                    )
+            else:
+                st.info("No scan history yet. Run your first scan!")
+            
+            # Show latest results
+            latest_results = db_client.get_latest_scan_results(limit=10)
+            if latest_results:
+                st.markdown("### 🏆 Latest Scan Results (from DB)")
+                latest_data = []
+                for r in latest_results:
+                    latest_data.append({
+                        'Rank': r.get('rank', 0),
+                        'Symbol': r.get('symbol', ''),
+                        'Score': round(r.get('total_score', 0), 2),
+                        'Bias': r.get('bias', ''),
+                        'Confidence': r.get('confidence', ''),
+                        'Price': f"₹{r.get('current_price', 0):.2f}",
+                    })
+                st.dataframe(pd.DataFrame(latest_data), hide_index=True, use_container_width=True)
+            
+            # DB connection status
+            st.sidebar.success("🟢 MongoDB Connected")
+            stats = db_client.get_dashboard_stats()
+            st.sidebar.metric("Total Scans", stats.get('total_scans', 0))
+            st.sidebar.metric("Unique Stocks Scanned", stats.get('unique_tickers_scanned', 0))
+        else:
+            st.sidebar.error("🔴 MongoDB Disconnected")
         
         st.markdown("""
         ### 🎯 System Overview
